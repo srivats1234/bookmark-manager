@@ -138,6 +138,12 @@
       border-radius: 10px;
       transition: border-color 0.2s, box-shadow 0.2s;
       animation: slideIn 0.2s ease;
+      cursor: grab;
+    }
+
+    .bookmark-item.dragging {
+      opacity: 0.4;
+      cursor: grabbing;
     }
 
     @keyframes slideIn {
@@ -368,6 +374,46 @@
       border-radius: 999px;
       vertical-align: middle;
     }
+
+    .folder-pill.drag-over {
+      border-color: #4f46e5;
+      background: #ede9fe;
+      color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+      transform: scale(1.06);
+    }
+
+    .folder-view-header {
+      display: none;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: #ede9fe;
+      border-radius: 8px;
+      border: 1.5px solid #c7d2fe;
+    }
+
+    .folder-view-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #4f46e5;
+      flex: 1;
+    }
+
+    .btn-back-all {
+      background: none;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .btn-back-all:hover { color: #4f46e5; background: #c7d2fe; }
   </style>
 </head>
 <body>
@@ -397,6 +443,10 @@
       <div class="list-header">
         <h2>Saved Bookmarks</h2>
         <span class="count-badge" id="count-badge">0</span>
+      </div>
+      <div class="folder-view-header" id="folder-view-header">
+        <button type="button" class="btn-back-all" id="back-to-all">← All</button>
+        <span class="folder-view-name" id="folder-view-name"></span>
       </div>
       <div id="folder-bar" class="folder-bar"></div>
       <div class="new-folder-row" id="new-folder-row">
@@ -468,6 +518,17 @@
       allBtn.className = 'folder-pill' + (activeFolder === null ? ' active' : '');
       allBtn.dataset.folderId = '';
       allBtn.textContent = 'All';
+      allBtn.addEventListener('dragover', (e) => { e.preventDefault(); });
+      allBtn.addEventListener('dragenter', (e) => { e.preventDefault(); allBtn.classList.add('drag-over'); });
+      allBtn.addEventListener('dragleave', (e) => { if (!allBtn.contains(e.relatedTarget)) allBtn.classList.remove('drag-over'); });
+      allBtn.addEventListener('drop', (e) => {
+        e.preventDefault();
+        allBtn.classList.remove('drag-over');
+        const id = e.dataTransfer.getData('text/plain');
+        const bms = loadBookmarks();
+        const bm = bms.find((b) => b.id === id);
+        if (bm) { bm.folderId = null; saveBookmarks(bms); render(currentQuery()); }
+      });
       bar.appendChild(allBtn);
 
       folders.forEach((f) => {
@@ -476,6 +537,17 @@
         btn.className = 'folder-pill' + (activeFolder === f.id ? ' active' : '');
         btn.dataset.folderId = f.id;
         btn.innerHTML = `${escHtml(f.name)}<span class="pill-x" data-delete-folder="${f.id}" title="Delete folder">&times;</span>`;
+        btn.addEventListener('dragover', (e) => { e.preventDefault(); });
+        btn.addEventListener('dragenter', (e) => { e.preventDefault(); btn.classList.add('drag-over'); });
+        btn.addEventListener('dragleave', (e) => { if (!btn.contains(e.relatedTarget)) btn.classList.remove('drag-over'); });
+        btn.addEventListener('drop', (e) => {
+          e.preventDefault();
+          btn.classList.remove('drag-over');
+          const id = e.dataTransfer.getData('text/plain');
+          const bms = loadBookmarks();
+          const bm = bms.find((b) => b.id === id);
+          if (bm) { bm.folderId = f.id; saveBookmarks(bms); render(currentQuery()); }
+        });
         bar.appendChild(btn);
       });
 
@@ -514,6 +586,16 @@
       const empty = document.getElementById('empty-state');
       const badge = document.getElementById('count-badge');
       const emptyMsg = document.getElementById('empty-msg');
+      const folderHeader = document.getElementById('folder-view-header');
+      const folderViewName = document.getElementById('folder-view-name');
+
+      if (activeFolder) {
+        const af = folders.find((f) => f.id === activeFolder);
+        folderViewName.textContent = af ? af.name : '';
+        folderHeader.style.display = 'flex';
+      } else {
+        folderHeader.style.display = 'none';
+      }
 
       badge.textContent = filtered.length;
       empty.style.display = filtered.length === 0 ? 'block' : 'none';
@@ -537,6 +619,16 @@
         const li = document.createElement('li');
         li.className = 'bookmark-item';
         li.dataset.id = bm.id;
+        li.draggable = true;
+        li.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', bm.id);
+          e.dataTransfer.effectAllowed = 'move';
+          setTimeout(() => li.classList.add('dragging'), 0);
+        });
+        li.addEventListener('dragend', () => {
+          li.classList.remove('dragging');
+          document.querySelectorAll('.folder-pill.drag-over').forEach((p) => p.classList.remove('drag-over'));
+        });
 
         const favicon = faviconUrl(bm.url);
         const imgTag = favicon
@@ -676,6 +768,11 @@
     document.getElementById('new-folder-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') document.getElementById('new-folder-confirm').click();
       if (e.key === 'Escape') document.getElementById('new-folder-cancel').click();
+    });
+
+    document.getElementById('back-to-all').addEventListener('click', () => {
+      activeFolder = null;
+      render(currentQuery());
     });
 
     render();
