@@ -204,6 +204,40 @@
 
     .empty-state svg { margin-bottom: 0.75rem; opacity: 0.4; }
     .empty-state p { font-size: 0.9rem; }
+
+    .search-wrap {
+      position: relative;
+      margin-bottom: 1rem;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #9ca3af;
+      pointer-events: none;
+    }
+
+    #search-input {
+      width: 100%;
+      padding: 0.65rem 1rem 0.65rem 2.25rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      color: #1a1a2e;
+      background: #fafafa;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    #search-input:focus {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+      background: #fff;
+    }
+
+    #search-input::placeholder { color: #9ca3af; }
   </style>
 </head>
 <body>
@@ -231,13 +265,19 @@
         <h2>Saved Bookmarks</h2>
         <span class="count-badge" id="count-badge">0</span>
       </div>
+      <div class="search-wrap">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search bookmarks…" autocomplete="off" />
+      </div>
       <ul class="bookmark-list" id="bookmark-list"></ul>
       <div class="empty-state" id="empty-state">
         <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round"
             d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
         </svg>
-        <p>No bookmarks yet. Add one above!</p>
+        <p id="empty-msg">No bookmarks yet. Add one above!</p>
       </div>
     </div>
   </div>
@@ -266,17 +306,23 @@
       }
     }
 
-    function render() {
+    function render(query = '') {
       const bookmarks = loadBookmarks();
+      const q = query.trim().toLowerCase();
+      const filtered = q ? bookmarks.filter((bm) => bm.title.toLowerCase().includes(q)) : bookmarks;
       const list = document.getElementById('bookmark-list');
       const empty = document.getElementById('empty-state');
       const badge = document.getElementById('count-badge');
+      const emptyMsg = document.getElementById('empty-msg');
 
-      badge.textContent = bookmarks.length;
-      empty.style.display = bookmarks.length === 0 ? 'block' : 'none';
+      badge.textContent = filtered.length;
+      empty.style.display = filtered.length === 0 ? 'block' : 'none';
+      emptyMsg.textContent = q && bookmarks.length > 0
+        ? `No bookmarks match "${query}".`
+        : 'No bookmarks yet. Add one above!';
       list.innerHTML = '';
 
-      bookmarks.forEach((bm) => {
+      filtered.forEach((bm) => {
         const li = document.createElement('li');
         li.className = 'bookmark-item';
         li.dataset.id = bm.id;
@@ -309,17 +355,21 @@
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function currentQuery() {
+      return document.getElementById('search-input').value;
+    }
+
     function addBookmark(title, url) {
       const bookmarks = loadBookmarks();
       bookmarks.unshift({ id: Date.now().toString(), title: title.trim(), url: url.trim() });
       saveBookmarks(bookmarks);
-      render();
+      render(currentQuery());
     }
 
     function deleteBookmark(id) {
       const bookmarks = loadBookmarks().filter((bm) => bm.id !== id);
       saveBookmarks(bookmarks);
-      render();
+      render(currentQuery());
     }
 
     // Form submission
@@ -370,6 +420,10 @@
       document.getElementById(id).addEventListener('input', () => {
         document.getElementById('error-msg').textContent = '';
       });
+    });
+
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      render(e.target.value);
     });
 
     render();
