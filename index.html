@@ -238,6 +238,136 @@
     }
 
     #search-input::placeholder { color: #9ca3af; }
+
+    select#input-folder {
+      width: 100%;
+      padding: 0.65rem 1rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      color: #1a1a2e;
+      background: #fafafa;
+      cursor: pointer;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    select#input-folder:focus {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+      background: #fff;
+    }
+
+    .folder-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .folder-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.3rem 0.75rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 999px;
+      background: #f9fafb;
+      color: #6b7280;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+      white-space: nowrap;
+    }
+
+    .folder-pill:hover { border-color: #c7d2fe; color: #4f46e5; background: #eef2ff; }
+
+    .folder-pill.active {
+      border-color: #4f46e5;
+      background: #ede9fe;
+      color: #4f46e5;
+      font-weight: 600;
+    }
+
+    .folder-pill-new { border-style: dashed; color: #9ca3af; }
+    .folder-pill-new:hover { border-color: #4f46e5; color: #4f46e5; background: #eef2ff; }
+
+    .pill-x {
+      font-size: 0.85rem;
+      line-height: 1;
+      color: #9ca3af;
+      padding: 0 0.1rem;
+      transition: color 0.15s;
+    }
+
+    .pill-x:hover { color: #ef4444; }
+
+    .new-folder-row {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    #new-folder-input {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      outline: none;
+      color: #1a1a2e;
+      background: #fafafa;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    #new-folder-input:focus {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+      background: #fff;
+    }
+
+    .btn-folder-confirm {
+      padding: 0.5rem 0.9rem;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-folder-confirm:hover { background: #4338ca; }
+
+    .btn-folder-cancel {
+      padding: 0.5rem 0.75rem;
+      background: none;
+      color: #6b7280;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-folder-cancel:hover { border-color: #d1d5db; color: #374151; }
+
+    .bm-folder-tag {
+      display: inline-block;
+      margin-left: 0.4rem;
+      padding: 0.1rem 0.45rem;
+      background: #ede9fe;
+      color: #4f46e5;
+      font-size: 0.7rem;
+      font-weight: 500;
+      border-radius: 999px;
+      vertical-align: middle;
+    }
   </style>
 </head>
 <body>
@@ -254,6 +384,9 @@
           <input type="text" id="input-title" placeholder="Title (e.g. GitHub)" autocomplete="off" />
           <input type="url" id="input-url" placeholder="https://example.com" autocomplete="off" />
         </div>
+        <select id="input-folder">
+          <option value="">No folder</option>
+        </select>
         <div class="error-msg" id="error-msg"></div>
         <button type="submit" class="btn-add">Add Bookmark</button>
       </form>
@@ -264,6 +397,12 @@
       <div class="list-header">
         <h2>Saved Bookmarks</h2>
         <span class="count-badge" id="count-badge">0</span>
+      </div>
+      <div id="folder-bar" class="folder-bar"></div>
+      <div class="new-folder-row" id="new-folder-row">
+        <input type="text" id="new-folder-input" placeholder="Folder name…" autocomplete="off" maxlength="30" />
+        <button type="button" class="btn-folder-confirm" id="new-folder-confirm">Add</button>
+        <button type="button" class="btn-folder-cancel" id="new-folder-cancel">Cancel</button>
       </div>
       <div class="search-wrap">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -284,32 +423,93 @@
 
   <script>
     const STORAGE_KEY = 'bookmarks_v1';
+    const FOLDERS_KEY = 'folders_v1';
 
     function loadBookmarks() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-      } catch {
-        return [];
-      }
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch { return []; }
     }
-
     function saveBookmarks(bookmarks) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
     }
+
+    function loadFolders() {
+      try { return JSON.parse(localStorage.getItem(FOLDERS_KEY)) || []; }
+      catch { return []; }
+    }
+    function saveFolders(folders) {
+      localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+    }
+
+    let activeFolder = null; // null = "All"
 
     function faviconUrl(url) {
       try {
         const origin = new URL(url).origin;
         return `https://www.google.com/s2/favicons?domain=${origin}&sz=32`;
-      } catch {
-        return null;
-      }
+      } catch { return null; }
+    }
+
+    function escHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function currentQuery() {
+      return document.getElementById('search-input').value;
+    }
+
+    function renderFolderBar(folders) {
+      const bar = document.getElementById('folder-bar');
+      bar.innerHTML = '';
+
+      const allBtn = document.createElement('button');
+      allBtn.type = 'button';
+      allBtn.className = 'folder-pill' + (activeFolder === null ? ' active' : '');
+      allBtn.dataset.folderId = '';
+      allBtn.textContent = 'All';
+      bar.appendChild(allBtn);
+
+      folders.forEach((f) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'folder-pill' + (activeFolder === f.id ? ' active' : '');
+        btn.dataset.folderId = f.id;
+        btn.innerHTML = `${escHtml(f.name)}<span class="pill-x" data-delete-folder="${f.id}" title="Delete folder">&times;</span>`;
+        bar.appendChild(btn);
+      });
+
+      const newBtn = document.createElement('button');
+      newBtn.type = 'button';
+      newBtn.className = 'folder-pill folder-pill-new';
+      newBtn.id = 'new-folder-btn';
+      newBtn.textContent = '+ Folder';
+      bar.appendChild(newBtn);
+    }
+
+    function renderFolderSelect(folders) {
+      const sel = document.getElementById('input-folder');
+      const current = sel.value;
+      sel.innerHTML = '<option value="">No folder</option>';
+      folders.forEach((f) => {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = f.name;
+        sel.appendChild(opt);
+      });
+      if (current && folders.find((f) => f.id === current)) sel.value = current;
     }
 
     function render(query = '') {
       const bookmarks = loadBookmarks();
+      const folders = loadFolders();
       const q = query.trim().toLowerCase();
-      const filtered = q ? bookmarks.filter((bm) => bm.title.toLowerCase().includes(q)) : bookmarks;
+
+      let filtered = activeFolder
+        ? bookmarks.filter((bm) => bm.folderId === activeFolder)
+        : bookmarks;
+      if (q) filtered = filtered.filter((bm) => bm.title.toLowerCase().includes(q));
+
       const list = document.getElementById('bookmark-list');
       const empty = document.getElementById('empty-state');
       const badge = document.getElementById('count-badge');
@@ -317,9 +517,20 @@
 
       badge.textContent = filtered.length;
       empty.style.display = filtered.length === 0 ? 'block' : 'none';
-      emptyMsg.textContent = q && bookmarks.length > 0
-        ? `No bookmarks match "${query}".`
-        : 'No bookmarks yet. Add one above!';
+
+      if (filtered.length === 0) {
+        const scopeHasAny = activeFolder
+          ? bookmarks.some((bm) => bm.folderId === activeFolder)
+          : bookmarks.length > 0;
+        if (q && scopeHasAny) {
+          emptyMsg.textContent = `No bookmarks match "${query}".`;
+        } else if (activeFolder && !scopeHasAny) {
+          emptyMsg.textContent = 'No bookmarks in this folder yet.';
+        } else {
+          emptyMsg.textContent = 'No bookmarks yet. Add one above!';
+        }
+      }
+
       list.innerHTML = '';
 
       filtered.forEach((bm) => {
@@ -332,10 +543,15 @@
           ? `<img class="favicon" src="${favicon}" alt="" onerror="this.style.display='none'">`
           : '';
 
+        const folder = folders.find((f) => f.id === bm.folderId);
+        const folderTag = (!activeFolder && folder)
+          ? `<span class="bm-folder-tag">${escHtml(folder.name)}</span>`
+          : '';
+
         li.innerHTML = `
           ${imgTag}
           <div class="bookmark-info">
-            <div class="bookmark-title" title="${escHtml(bm.title)}">${escHtml(bm.title)}</div>
+            <div class="bookmark-title" title="${escHtml(bm.title)}">${escHtml(bm.title)}${folderTag}</div>
             <a class="bookmark-url" href="${escHtml(bm.url)}" target="_blank" rel="noopener noreferrer"
                title="${escHtml(bm.url)}">${escHtml(bm.url)}</a>
           </div>
@@ -348,27 +564,35 @@
 
         list.appendChild(li);
       });
-    }
 
-    function escHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
-
-    function currentQuery() {
-      return document.getElementById('search-input').value;
+      renderFolderBar(folders);
+      renderFolderSelect(folders);
     }
 
     function addBookmark(title, url) {
       const bookmarks = loadBookmarks();
-      bookmarks.unshift({ id: Date.now().toString(), title: title.trim(), url: url.trim() });
+      const folderId = document.getElementById('input-folder').value || null;
+      bookmarks.unshift({ id: Date.now().toString(), title: title.trim(), url: url.trim(), folderId });
       saveBookmarks(bookmarks);
       render(currentQuery());
     }
 
     function deleteBookmark(id) {
-      const bookmarks = loadBookmarks().filter((bm) => bm.id !== id);
-      saveBookmarks(bookmarks);
+      saveBookmarks(loadBookmarks().filter((bm) => bm.id !== id));
+      render(currentQuery());
+    }
+
+    function addFolder(name) {
+      const folders = loadFolders();
+      folders.push({ id: Date.now().toString(), name: name.trim() });
+      saveFolders(folders);
+      render(currentQuery());
+    }
+
+    function deleteFolder(id) {
+      saveFolders(loadFolders().filter((f) => f.id !== id));
+      saveBookmarks(loadBookmarks().map((bm) => bm.folderId === id ? { ...bm, folderId: null } : bm));
+      if (activeFolder === id) activeFolder = null;
       render(currentQuery());
     }
 
@@ -382,22 +606,11 @@
       const title = titleEl.value.trim();
       const url = urlEl.value.trim();
 
-      if (!title && !url) {
-        errorEl.textContent = 'Please enter a title and URL.';
-        return;
-      }
-      if (!title) {
-        errorEl.textContent = 'Please enter a title.';
-        return;
-      }
-      if (!url) {
-        errorEl.textContent = 'Please enter a URL.';
-        return;
-      }
+      if (!title && !url) { errorEl.textContent = 'Please enter a title and URL.'; return; }
+      if (!title) { errorEl.textContent = 'Please enter a title.'; return; }
+      if (!url) { errorEl.textContent = 'Please enter a URL.'; return; }
 
-      try {
-        new URL(url);
-      } catch {
+      try { new URL(url); } catch {
         errorEl.textContent = 'Please enter a valid URL (include https://).';
         return;
       }
@@ -424,6 +637,45 @@
 
     document.getElementById('search-input').addEventListener('input', (e) => {
       render(e.target.value);
+    });
+
+    // Folder bar: pill click, delete, or new folder
+    document.getElementById('folder-bar').addEventListener('click', (e) => {
+      const delBtn = e.target.closest('[data-delete-folder]');
+      if (delBtn) {
+        e.stopPropagation();
+        deleteFolder(delBtn.dataset.deleteFolder);
+        return;
+      }
+      if (e.target.closest('#new-folder-btn')) {
+        document.getElementById('new-folder-row').style.display = 'flex';
+        document.getElementById('new-folder-input').focus();
+        return;
+      }
+      const pill = e.target.closest('.folder-pill');
+      if (pill && !pill.classList.contains('folder-pill-new')) {
+        activeFolder = pill.dataset.folderId || null;
+        render(currentQuery());
+      }
+    });
+
+    document.getElementById('new-folder-confirm').addEventListener('click', () => {
+      const input = document.getElementById('new-folder-input');
+      const name = input.value.trim();
+      if (!name) return;
+      addFolder(name);
+      input.value = '';
+      document.getElementById('new-folder-row').style.display = 'none';
+    });
+
+    document.getElementById('new-folder-cancel').addEventListener('click', () => {
+      document.getElementById('new-folder-input').value = '';
+      document.getElementById('new-folder-row').style.display = 'none';
+    });
+
+    document.getElementById('new-folder-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('new-folder-confirm').click();
+      if (e.key === 'Escape') document.getElementById('new-folder-cancel').click();
     });
 
     render();
